@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Build RadioMaster MT12 Firmware
 
+    permissions:
+      contents: read
+
     env:
       BOARD: "multi4in1:STM32F1:multistm32f103cb:debug_option=none"
       RELEASE: "stm32f103-128k-4in1"
