@@ -1,0 +1,81 @@
+# Workflow for building firmware for RadioMaster MT12
+
+name: Build RadioMaster MT12 Firmware
+
+on:
+  # Trigger on pushes to master branch
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/build-mt12.yml'
+      - 'buildroot/bin/**'
+      - 'Multiprotocol/**'
+
+  # Allows manual trigger from Actions tab
+  workflow_dispatch:
+
+jobs:
+  build-mt12:
+    runs-on: ubuntu-latest
+    name: Build RadioMaster MT12 Firmware
+
+    env:
+      BOARD: "multi4in1:STM32F1:multistm32f103cb:debug_option=none"
+      RELEASE: "stm32f103-128k-4in1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "0.32.2"
+
+      - name: Prepare build environment
+        run: |
+          echo "Building firmware for RadioMaster MT12"
+          echo "Board: $BOARD"
+
+          arduino-cli config init --additional-urls https://raw.githubusercontent.com/pascallanger/DIY-Multiprotocol-TX-Module-Boards/master/package_multi_4in1_board_index.json
+          arduino-cli core update-index
+          arduino-cli core install multi4in1:STM32F1
+
+          chmod +x ${GITHUB_WORKSPACE}/buildroot/bin/*
+          echo "${GITHUB_WORKSPACE}/buildroot/bin" >> $GITHUB_PATH
+
+          mkdir -p ./build
+          mkdir -p ./binaries
+
+      - name: Configure firmware options
+        run: |
+          source ./buildroot/bin/buildFunctions
+
+          # Get the version
+          getMultiVersion
+          echo "MULTI_VERSION=$(echo $MULTI_VERSION)" >> $GITHUB_ENV
+          echo "Building version: $MULTI_VERSION"
+
+      - name: Build RadioMaster MT12 firmware
+        run: |
+          source ./buildroot/bin/buildFunctions
+          buildReleaseFiles
+          ls -al ./binaries
+
+          NUM_FILES=$(ls -l ./binaries | grep ^- | wc -l)
+          if [ $NUM_FILES -gt 0 ]; then
+            echo "HAVE_FILES=true" >> $GITHUB_ENV
+            echo "Successfully built $NUM_FILES firmware file(s)"
+          else
+            echo "HAVE_FILES=false" >> $GITHUB_ENV
+            echo "Error: No firmware files were built"
+            exit 1
+          fi
+
+      - name: Upload firmware artifacts
+        if: env.HAVE_FILES == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: radiomaster-mt12-firmware
+          path: ./binaries/
+          retention-days: 90
